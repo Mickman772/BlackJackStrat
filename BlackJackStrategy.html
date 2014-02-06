@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html>
+<!-- The purpose of this program is to provide the user with a comprehensive analysis of different actions a player can take when in a specific BlackJack hand.  The simulation assumes infinite decks and provides a player's win/loss percentage in the following scenarios:
+Staying
+Hitting Once
+Hitting Until a specific score is reached
+Splitting (if possible, and optimizing the Hit Until Strategy)
+
+The program then finds the optimal solution for the player between these different options including hitting until any specific score.
+
+Enjoy! -->
+
+
+<!--This creates the Dropdowns for the user to select the Dealer's showing card and the Player's Cards-->
+<h1>Welcome to the BlackJack Strategy Tester!</h1>
+<div id="dealerCardDiv">Select Dealer's Card:
+<select id="dealerCard"> 
+	<option value=""></option>
+	<option value="1">A</option>
+	<option value="2">2</option>
+  	<option value="3">3</option>
+  	<option value="4">4</option>
+ 	<option value="5">5</option>
+  	<option value="6">6</option>
+  	<option value="7">7</option>
+ 	<option value="8">8</option>
+  	<option value="9">9</option>
+  	<option value="10">10</option>
+	<option value="11">J</option>
+  	<option value="12">Q</option>
+  	<option value="13">K</option>
+</select></div>
+<br>
+<div id="playerCardDiv">Select Player's Cards:
+<select id="playerCard1"> 
+	<option value=""></option>
+	<option value="1">A</option>
+	<option value="2">2</option>
+  	<option value="3">3</option>
+  	<option value="4">4</option>
+ 	<option value="5">5</option>
+  	<option value="6">6</option>
+  	<option value="7">7</option>
+ 	<option value="8">8</option>
+  	<option value="9">9</option>
+  	<option value="10">10</option>
+	<option value="11">J</option>
+  	<option value="12">Q</option>
+  	<option value="13">K</option>
+</select>
+<select id="playerCard2">
+	<option value=""></option>
+	<option value="1">A</option>
+	<option value="2">2</option>
+  	<option value="3">3</option>
+  	<option value="4">4</option>
+ 	<option value="5">5</option>
+  	<option value="6">6</option>
+  	<option value="7">7</option>
+ 	<option value="8">8</option>
+  	<option value="9">9</option>
+  	<option value="10">10</option>
+	<option value="11">J</option>
+  	<option value="12">Q</option>
+  	<option value="13">K</option>
+</select></div>
+<br>
+<!-- The below input allows the user to see the win percentage of continuing to hit until a specified score is reached-->
+<div id="hitUntilDiv">Continue hitting until score is at least: <input id="hitUntil" type="number"; size="3"></input></div></p>
+
+<button onClick='Caller()'>Test Strategy</button>
+
+<!--This is where all the results are recorded-->
+<div id="BJNotice"></div>
+<div id="stayResult"></div>
+<div id="hitResult"></div>
+<div id="hitUntilResult"></div>
+<div id="splitResult"></div>
+<div id="bestResult"></div>
+<div id="tester"></div>
+
+
+<script>
+//On new load, all the user input fields are set to Blank
+document.getElementById("dealerCard").value = ""
+document.getElementById("playerCard1").value = ""
+document.getElementById("playerCard2").value = ""
+document.getElementById("hitUntil").value = ""
+
+//Declare global variables - may be opportunity for improvement (dictionaries for Prob?)
+var dealerProb = new Array();
+	for(i=17;i<27;i++){dealerProb[i]=0.0}
+var playerProb = new Array();
+	for(i=1;i<32;i++){playerProb[i]=0.0}
+var soft_ind = false
+
+var Caller = function(dealerCard,playerCard1,playerCard2,hitUntil){
+    var multiplier = 1;
+    var hand = [];
+    var dealerCard = Number(document.getElementById("dealerCard").value);
+    //if any of the required inputs are missing, turn their div red and quit out of the program
+    if(dealerCard===0){
+    	document.getElementById("dealerCardDiv").style.backgroundColor = "red"
+    	return
+    }else{
+    	document.getElementById("dealerCardDiv").style.backgroundColor = ""
+    }
+    var playerCard1 = Number(document.getElementById("playerCard1").value);
+    var playerCard2 = Number(document.getElementById("playerCard2").value);
+    if(playerCard1===0 || playerCard2===0){
+    	document.getElementById("playerCardDiv").style.backgroundColor = "red"
+    	return
+    }else{
+    	document.getElementById("playerCardDiv").style.backgroundColor = ""
+    }
+    var hitUntil = Number(document.getElementById("hitUntil").value);
+    if(hitUntil>21){
+		hitUntil = 21
+		document.getElementById("hitUntil").value = 21
+	}
+	//Add dealerCard to the hand list and send the hand to the dealerBrancher
+	for(i=17;i<27;i++){dealerProb[i]=0.0}
+    hand[0] = dealerCard;
+    var BJCount = dealerResults=dealerBrancher(0, hand, 0);
+
+    //Check and see if the dealer has any chance of getting blackjack. If so, adjust and record to screen
+    if(BJCount !== 0){
+        multiplier = (1/((1-(BJCount/100))));
+        document.getElementById("BJNotice").innerHTML = "Chance of Dealer BlackJack: "+Math.round(BJCount*100)/100+"% <br> The following percentages assume dealer does not have BlackJack <br>"
+    }else{
+    	document.getElementById("BJNotice").innerHTML = ""
+    }
+    for(var i = 17; i <=20;i++){
+        dealerProb[i]=dealerProb[i]*multiplier;
+    };
+    if(multiplier!==1){
+        dealerProb[21]=((((dealerProb[21]/100))-((BJCount/100)))/(((1-(BJCount/100)))))*100;
+    };
+    for(var i = 22; i<=26;i++){
+        dealerProb[i]=dealerProb[i]*multiplier
+    };
+    playerEntry([playerCard1,playerCard2],hitUntil)
+    for(i=17;i<27;i++){dealerProb[i]=0.0};
+}
+
+var scorer = function(hand){
+//Returns the score of a hand when passed a hand
+    var score = 0;
+    var countAces = 0;
+    soft_ind = false;
+    for(var i = 0; i <= hand.length-1; i++){
+        if(hand[i]>10){
+            score += 10;
+        }else if(hand[i]===1){
+            countAces++;
+        }else{
+            score = score + hand[i];
+        };
+    };
+    if(countAces > 0){
+        if(score+11+countAces-1>21){
+            score ++;
+            soft_ind = false;
+        }else{
+            score += 11;
+            soft_ind = true;
+        };
+    };
+    if(countAces > 1){
+        score = score + countAces-1;
+    };
+    return score
+}
+
+var isOver = function(hand){
+//Determines if dealer is done hitting (has hard 17 or above)
+    if(scorer(hand)>=18){
+        return true;
+    }else if(scorer(hand)===17 && soft_ind === false){
+        return true;
+    }else{
+        return false;
+    }
+}
+
+var dealerBrancher = function(theLevel,hand,BJCount){
+//This is a recursive function that calls upon itself when the Dealer's score requires him to continue hitting.  With every run through theLevel increases by one, which allows the new card to be placed after the last card hit.
+    theLevel ++;
+    hand.push(0);
+    for(var i = 1;i <=13;i++){
+    //Every time the dealer would get a new card, this will run through all the possible card values to consider all possible hands
+        hand[theLevel] = i;
+        if(scorer(hand)===21 && theLevel===1){
+        //Records the percentage likelihood of a blackjack so that it can be removed and all other percentages can be adjusted
+            BJCount+=(1.0/(Math.pow(13,theLevel)))*100;
+        };
+        if(isOver(hand)===true){
+        //if the dealer would not hit on the current hand, adds the probability of that specific hand occurring to the dealerProb with the index of the hand's score
+            dealerProb[scorer(hand)] += (1.0/(Math.pow(13,theLevel)))*100;
+            hand[theLevel] = 0;
+        }else{
+        //if the dealer would continue hitting, this is the recursion that would allow the dealer to get a new card
+            dealerBrancher(theLevel, hand);
+            hand[theLevel] = 0;
+        };
+    };
+    if(theLevel===1){
+    	return BJCount
+    };
+}
+
+var playerEntry = function(hand,hitUntil){
+//finds all those possible player actions and compares them to the dealerProb to return the win percentage of all possible player actions
+	//finds win percentage if player stays and prints to stayResult Div
+    var stay = new resultClass();
+    for(var i = 17; i <=21;i++){
+        if(scorer(hand)<i){
+            stay.lose+=dealerProb[i];
+        }else if(scorer(hand)===i){
+            stay.push+=dealerProb[i];
+        }else if(scorer(hand)>i){
+            stay.win+=dealerProb[i];
+        };
+    };
+    for(var i = 22; i <=26; i++){
+        stay.win+=dealerProb[i];
+    }
+    document.getElementById("stayResult").innerHTML = "<br> If You Stay: <br> Chance of Winning: " +Math.round(stay.win*100)/100 + "%<br> Chance of Pushing: " + Math.round(stay.push*100)/100 + "%<br> Chance of Losing: " + Math.round(stay.lose*100)/100 + "%"
+
+    //finds win percentage if player hits once and prints to the hitResult Div
+    for(i=1;i<32;i++){playerProb[i]=0.0}
+    for(var i = 1; i <=13;i++){
+        hand[2]=i;
+        playerProb[scorer(hand)]+=(1.0/13);
+    }
+    var hit = results();
+    document.getElementById("hitResult").innerHTML = "If You Hit Once: <br> Chance of Winning: " + Math.round(hit.win*100)/100 + "%<br> Chance of Pushing: " + Math.round(hit.push*100)/100 + "%<br> Chance of Losing: " + Math.round(hit.lose*100)/100 + "%";
+
+    //if user enters in a hitUntil score, this will call the playerBrancher to run through all possible probabilities of hands and print the win percentage to hitUntilResult Div
+    if(hitUntil!==0){
+    	for(i=1;i<32;i++){playerProb[i]=0.0}
+        playerBrancher([hand[0],hand[1]],1,hitUntil,1);
+        hit = results();
+    	document.getElementById("hitUntilResult").innerHTML = "If You Hit Until "+hitUntil+": <br> Chance of Winning: " + Math.round(hit.win*100)/100 + "%<br> Chance of Pushing: " + Math.round(hit.push*100)/100 + "%<br> Chance of Losing: " + Math.round(hit.lose*100)/100 + "%";
+	}else{document.getElementById("hitUntilResult").innerHTML = ""
+	};
+
+	//if player can split, finds the optimal split behavior
+	if(scorer([hand[0]])===scorer([hand[1]])){
+		var split = optimalTester([hand[0]],1)
+    	document.getElementById("splitResult").innerHTML = "<br><u>Split (with Optimal Strategy)</u><br>Hit Until "+split.score+": <br> Chance of Winning: " + Math.round(split.win*100)/100 + "%<br> Chance of Pushing: " + Math.round(split.push*100)/100 + "%<br> Chance of Losing: " + Math.round(split.lose*100)/100 + "%";
+    }else{document.getElementById("splitResult").innerHTML = "";
+    };
+	
+	//finds the optimal strategy testing staying, splitting, and all possible HitUntil values
+		var bestStrat = optimalTester([hand[0],hand[1]],2)
+    	var bestMessage = "Hit Until "+ bestStrat.score
+	if(stay.win/stay.lose>bestStrat.win/bestStrat.lose){
+		bestStrat=stay
+		bestMessage = "Stay"
+	}
+	if(scorer([hand[0]])===scorer([hand[1]])){
+    	if(2*(split.win-split.lose)>(bestStrat.win-bestStrat.lose)){
+    	bestStrat=split;
+    	bestMessage = "Split and Hit Until " + split.score;
+    	}
+    }
+    document.getElementById("bestResult").innerHTML = "<br><u>Optimal Strategy</u><br>"+bestMessage+": <br> Chance of Winning: " + Math.round(bestStrat.win*100)/100 + "%<br> Chance of Pushing: " + Math.round(bestStrat.push*100)/100 + "%<br> Chance of Losing: " + Math.round(bestStrat.lose*100)/100 + "%";
+}
+
+var playerBrancher = function(hand,theLevel,hitUntil,cards){
+//works similarly to dealerBrancher but tests for smaller than hitUntil and begins hitting on level 2
+    theLevel ++;
+    for(var i = 1;i <=13;i++){
+    	if(scorer(hand)<hitUntil || soft_ind ===true){
+	        hand[theLevel] = i;
+	        if(scorer(hand)>=hitUntil){
+	            playerProb[scorer(hand)] += (1.0/(Math.pow(13,theLevel-cards)));
+	            hand[theLevel] = 0;
+	        }else if(theLevel<9){
+	            playerBrancher(hand,theLevel,hitUntil,cards);
+	            hand[theLevel] = 0;
+	        };
+	    };
+    };
+
+}
+
+var optimalTester = function(hand,cards){
+//runs through each score that a player could hit until, and returns strategy with the highest win/loss percentage
+var optimalResult = new resultClass();
+	for(var k = 4;k<=21;k++){
+		for(i=1;i<32;i++){playerProb[i]=0.0}
+	    playerBrancher(hand,cards-1,k,cards-1);
+	    var result = results();
+	    result.score = k
+	    if(result.win/result.lose>=optimalResult.win/optimalResult.lose || (optimalResult.win === 0 && optimalResult.lose ===0)){
+	    	var optimalResult = result;
+	    }
+	}
+	return optimalResult
+}
+
+var results = function(){
+//compares the probability of each player and dealer score and adds them to the respective result (win,loss,tie)
+    var result = new resultClass();
+    for(var i=1;i<=30; i++){
+        for(var j=17;j<=26;j++){
+            if(j>21 && i<=21){
+                result.win+=playerProb[i]*dealerProb[j];
+            }else if(i>21){
+                result.lose+=playerProb[i]*dealerProb[j];
+            }else if(i>j){
+                result.win+=playerProb[i]*dealerProb[j];
+            }else if(i===j){
+                result.push+=playerProb[i]*dealerProb[j];
+            }else if(i<j){
+                result.lose+=playerProb[i]*dealerProb[j];
+            };
+        };
+    };
+    return result
+}
+
+function resultClass() {
+	this.win= 0,
+	this.lose= 0,
+	this.push= 0
+}
+        
+</script>
+
+<body>
+</body>
+
+</html>
+
